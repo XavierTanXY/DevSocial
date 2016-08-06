@@ -10,4 +10,5 @@ target 'dev-social' do
   pod 'Firebase/Auth'
   pod 'Firebase/Database'
   pod 'Firebase/Storage'
+  pod 'FBSDKLoginKit'
 end
