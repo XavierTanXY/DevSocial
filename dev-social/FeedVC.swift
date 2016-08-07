@@ -14,10 +14,13 @@ class FeedVC: UIViewController, UITableViewDelegate, UITableViewDataSource, UIIm
 
     @IBOutlet weak var tableView: UITableView!
     @IBOutlet weak var imageAdd: CircleView!
+    @IBOutlet weak var captionField: FancyField!
+    
     
     var posts = [Post]()
     var imagePick: UIImagePickerController!
     static var imageCache: NSCache<NSString, UIImage> = NSCache()
+    var imageSelected = false
     
     override func viewDidLoad() {
         super.viewDidLoad()
@@ -64,11 +67,11 @@ class FeedVC: UIViewController, UITableViewDelegate, UITableViewDataSource, UIIm
             
             if let img = FeedVC.imageCache.object(forKey: post.imageUrl){
                 cell.configureCell(post: post, img: img)
-                return cell
             } else {
                 cell.configureCell(post: post, img: nil)
-                return cell
+                
             }
+            return cell
             
         } else {
             return PostCell()
@@ -78,6 +81,7 @@ class FeedVC: UIViewController, UITableViewDelegate, UITableViewDataSource, UIIm
     func imagePickerController(_ picker: UIImagePickerController, didFinishPickingMediaWithInfo info: [String : AnyObject]) {
         if let image = info[UIImagePickerControllerEditedImage] as? UIImage {
             imageAdd.image = image
+            imageSelected = true
         } else {
             print("Xavier: no image selected")
         }
@@ -88,6 +92,56 @@ class FeedVC: UIViewController, UITableViewDelegate, UITableViewDataSource, UIIm
         present(imagePick, animated: true, completion: nil)
     }
 
+    @IBAction func postBtnTapped(_ sender: AnyObject) {
+        guard let caption = captionField.text, caption != "" else {
+            print("Xavier: Caption must be entered")
+            return
+        }
+        
+        guard let img = imageAdd.image, imageSelected == true else {
+            print("Xavier: img must be selecyed")
+            return
+        }
+        
+        if let imgData = UIImageJPEGRepresentation(img, 0.2) {
+            
+            let imgUid = NSUUID().uuidString
+            let metaData = FIRStorageMetadata()
+            metaData.contentType = "image/jpeg"
+            
+            DataService.ds.REF_POST_IMAGES.child(imgUid).put(imgData, metadata: metaData) { (metaData, error) in
+                if error != nil {
+                    print("Xavier: upload image to firebase failed")
+                } else {
+                    print("Xavier: successfuly upload img to firebase")
+                    let downloadUrl = metaData?.downloadURL()?.absoluteString
+                    if let url = downloadUrl {
+                        self.postToFirebase(imgUrl: url)
+                    }
+                    
+                }
+                
+            }
+        }
+        
+        
+        
+    }
+    
+    func postToFirebase(imgUrl: String) {
+        let post: Dictionary<String, AnyObject> = ["caption": captionField.text!, "imageUrl": imgUrl, "likes": 0]
+        
+        let firebasePost = DataService.ds.REF_POSTS.childByAutoId()
+        firebasePost.setValue(post)
+        
+        captionField.text = ""
+        imageSelected = false
+        imageAdd.image = UIImage(named: "add-image")
+        
+        tableView.reloadData()
+    }
+    
+    
     @IBAction func signOutTapped(_ sender: AnyObject) {
         let keyChainResult = KeychainWrapper.removeObjectForKey(KEY_UID)
         print("Xavier: ID removed \(keyChainResult)")
